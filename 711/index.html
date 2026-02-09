@@ -818,7 +818,7 @@ function renderProductTree(filter = '') {
   
   const sortedCates = Object.keys(tree).sort();
   if (sortedCates.length === 0) {
-    els.modalBody.innerHTML = '<div style="padding:20px;text-align:center">無商品資料</div>';
+    els.modalBody.innerHTML = '<div class="list-item" onclick="clearProductFilter(true);closeModal()" style="color:#ef4444; font-weight:bold; border-bottom:2px solid #f3f4f6">✖ 清除篩選</div><div style="padding:20px;text-align:center">無商品資料</div>';
     return;
   }
 
