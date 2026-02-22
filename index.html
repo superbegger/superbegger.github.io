@@ -350,24 +350,30 @@
 
 <script>
 /* -------------------------
-   Store Routing Logic
+   Store Routing Logic (修正版)
    ------------------------- */
-let currentPath = window.location.pathname;
-const redirectPath = sessionStorage.getItem('redirectPath');
+// 1. 取得網址中的參數 (例如 ?p=/family)
+const urlParams = new URLSearchParams(window.location.search);
+const pParam = urlParams.get('p');
 
-// 如果是從 404.html 轉跳過來的，把真實路徑拿出來用
-if (redirectPath) {
-    currentPath = redirectPath;
-    sessionStorage.removeItem('redirectPath');
-    // 悄悄把瀏覽器網址列改回使用者輸入的路徑 (例如 /family/)，這不會觸發網頁重新整理
-    window.history.replaceState(null, null, currentPath);
+// 2. 決定目前要使用的路徑來源
+// 如果有參數就用參數，沒有就用目前的 pathname
+let checkPath = (pParam || window.location.pathname).toLowerCase();
+
+// 3. 判斷品牌
+let activeStore = '711'; // 預設值
+if (checkPath.includes('family')) {
+    activeStore = 'family';
+} else if (checkPath.includes('pxmart')) {
+    activeStore = 'pxmart';
 }
 
-currentPath = currentPath.toLowerCase();
-let activeStore = '711'; // 預設為 711
-if (currentPath.includes('/family')) activeStore = 'family';
-else if (currentPath.includes('/pxmart')) activeStore = 'pxmart';
+// 4. (選配) 為了美觀，將網址列改回漂亮的路徑 (例如把 /?p=/family 改回 /family)
+if (pParam) {
+    window.history.replaceState(null, null, pParam);
+}
 
+// 5. 根據判斷結果設定對應的標題與 API
 const STORE_INFO = {
   '711': { title: '711即期地圖', api: '711', storageKey: '711_MAP_' },
   'family': { title: '全家即期地圖', api: 'family', storageKey: 'FAMILY_MAP_' },
@@ -375,7 +381,7 @@ const STORE_INFO = {
 };
 const configStore = STORE_INFO[activeStore];
 
-// 初始化 UI 文字
+// 套用 UI 文字
 document.title = configStore.title;
 document.getElementById('appTitle').textContent = configStore.title;
 
