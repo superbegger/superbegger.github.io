@@ -354,7 +354,7 @@
    ------------------------- */
 // 1. 取得網址中的參數 (例如 ?p=/family)
 const urlParams = new URLSearchParams(window.location.search);
-const pParam = urlParams.get('p');
+var pParam = urlParams.get('p');
 
 // 2. 決定目前要使用的路徑來源
 // 如果有參數就用參數，沒有就用目前的 pathname
@@ -366,6 +366,9 @@ if (checkPath.includes('family')) {
     activeStore = 'family';
 } else if (checkPath.includes('pxmart')) {
     activeStore = 'pxmart';
+}
+else{
+    pParam='711';
 }
 
 // 4. (選配) 為了美觀，將網址列改回漂亮的路徑 (例如把 /?p=/family 改回 /family)
