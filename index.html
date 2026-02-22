@@ -352,7 +352,18 @@
 /* -------------------------
    Store Routing Logic
    ------------------------- */
-const currentPath = window.location.pathname.toLowerCase();
+let currentPath = window.location.pathname;
+const redirectPath = sessionStorage.getItem('redirectPath');
+
+// 如果是從 404.html 轉跳過來的，把真實路徑拿出來用
+if (redirectPath) {
+    currentPath = redirectPath;
+    sessionStorage.removeItem('redirectPath');
+    // 悄悄把瀏覽器網址列改回使用者輸入的路徑 (例如 /family/)，這不會觸發網頁重新整理
+    window.history.replaceState(null, null, currentPath);
+}
+
+currentPath = currentPath.toLowerCase();
 let activeStore = '711'; // 預設為 711
 if (currentPath.includes('/family')) activeStore = 'family';
 else if (currentPath.includes('/pxmart')) activeStore = 'pxmart';
