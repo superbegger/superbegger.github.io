@@ -1,24 +1,14 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8">
-    <title>Redirecting...</title>
-    <script type="text/javascript">
-      // 取得當前的路徑 (例如 "/aaa")
-      var path = window.location.pathname;
-      
-      // 取得原本的 Query 字串 (如果有)
-      var search = window.location.search;
-
-      // 重新導向回根目錄，並把路徑當作參數傳入
-      // 假設你的 GitHub Repo 名稱是 'my-app'，路徑處理需注意
-      // 這裡示範最通用的做法：
-      var target = '/' + window.location.pathname.split('/').filter(Boolean).pop() + search;
-      
-      // 導向回 index.html 並帶上參數
-      window.location.replace('/?p=' + path.replace(/\//g, ''));
-    </script>
-  </head>
-  <body>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <script>
+    // 取得當前錯誤的路徑，例如 /family/
+    var path = window.location.pathname;
+    // 轉跳回首頁，並帶上參數 p
+    // 如果你的 github 網址有專案名稱 (如 /my-repo/)，這裡要改為 window.location.replace('/my-repo/?p=' + ...)
+    window.location.replace('/?p=' + encodeURIComponent(path));
+  </script>
+</head>
+<body></body>
 </html>
