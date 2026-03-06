@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-H23SPFKCZ5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-H23SPFKCZ5');
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>即期地圖</title> <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+
+<style>
+  /* ------------------- 基礎設定 ------------------- */
+  body { font-family: -apple-system, BlinkMacSystemFont, "Microsoft JhengHei", Roboto, sans-serif; margin: 0; background-color: #f3f4f6; font-size: 16px; color: #333; -webkit-tap-highlight-color: transparent; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  
+  /* ------------------- Header ------------------- */
+  .app-header {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #fff; padding: 3px 15px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); z-index: 60; flex-shrink: 0;
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .header-right { display: flex; align-items: center; gap: 8px; } 
+  
+  .menu-btn { font-size: 24px; cursor: pointer; line-height: 1; color: #374151; padding: 5px; }
+  .app-title { font-size: 1.1rem; font-weight: bold; color: #111827; }
+  
+  .refresh-btn { 
+    background: none; border: none; font-size: 1.2rem; cursor: pointer; 
+    color: #4b5563; padding: 5px; line-height: 1; transition: transform 0.2s;
+  }
+  .refresh-btn:active { transform: rotate(180deg); color: #2563eb; }
+
+  .update-time { font-size: 0.75rem; color: #6b7280; text-align: right; line-height: 1.2; }
+  .update-time span { display: block; font-weight: 500; }
+
+  .info-container { position: relative; display: flex; align-items: center; }
+  .info-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border: 1.5px solid #6b7280; border-radius: 50%;
+    color: #6b7280; font-size: 12px; font-weight: bold; font-family: serif;
+    cursor: help; margin-left: 4px;
+  }
+  .info-tooltip {
+    position: absolute; top: 100%; right: 0; margin-top: 8px;
+    background-color: rgba(0, 0, 0, 0.85); color: #fff; 
+    padding: 6px 10px; border-radius: 6px; font-size: 12px; white-space: nowrap;
+    visibility: hidden; opacity: 0; transition: opacity 0.2s; z-index: 100;
+    pointer-events: none;
+  }
+  .info-container:hover .info-tooltip, 
+  .info-icon:active + .info-tooltip { visibility: visible; opacity: 1; }
+
+  /* ------------------- 控制面板 ------------------- */
+  .control-panel { padding: 10px; background: #fff; border-bottom: 1px solid #e5e7eb; z-index: 50; flex-shrink: 0; }
+  .control-row { display: flex; gap: 8px; }
+  
+  .big-btn {
+    flex: 1; padding: 3px 8px; border: 1px solid #d1d5db; border-radius: 8px;
+    background: #fff; color: #374151; font-size: 15px; font-weight: 600;
+    text-align: center; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: flex; align-items: center; justify-content: center; transition: 0.2s;
+  }
+  .big-btn:active { background-color: #f9fafb; transform: scale(0.98); }
+  .big-btn.selected { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
+  .big-btn.disabled { opacity: 0.6; background: #e5e7eb; color: #9ca3af; pointer-events: none; }
+
+  .result-count { 
+    text-align: center; font-size: 13px; color: #059669; margin-top: 8px; font-weight: 500; 
+    min-height: 1.2em; 
+  }
+  .result-count.error { color: #ef4444; }
+
+  /* ------------------- 側邊欄 (Sidebar) ------------------- */
+  .sidebar-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5); z-index: 3000;
+    visibility: hidden; opacity: 0; transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+  }
+  .sidebar-overlay.open {
+    visibility: visible; opacity: 1; transition: opacity 0.3s ease, visibility 0s;
+  }
+
+  .sidebar {
+    position: fixed; top: 0; left: 0; width: 250px; height: 100%;
+    background: #fff; z-index: 3001;
+    transform: translateX(-100%); transition: transform 0.3s ease;
+    display: flex; flex-direction: column; box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+  }
+  .sidebar-overlay.open .sidebar { transform: translateX(0); }
+  
+  .sidebar-header { padding: 20px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; font-weight: bold; font-size: 1.2rem; }
+  .sidebar-menu { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
+  .sidebar-menu li { border-bottom: 1px solid #f3f4f6; }
+  .sidebar-menu a { display: block; padding: 15px 20px; color: #374151; text-decoration: none; font-size: 16px; }
+  .sidebar-menu a:active { background: #eff6ff; color: #2563eb; }
+
+  .sidebar-footer {
+    padding: 15px; border-top: 1px solid #e5e7eb; background: #f9fafb;
+    display: flex; justify-content: center; gap: 20px;
+  }
+  .sidebar-footer a { font-size: 13px; color: #6b7280; text-decoration: none; }
+  .sidebar-footer a:hover { color: #2563eb; text-decoration: underline; }
+
+  /* ------------------- 地圖 ------------------- */
+  #map { flex: 1; width: 100%; height: 100%; z-index: 1; }
+
+  /* ------------------- Modal (Bottom Sheet) ------------------- */
+  .modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5); z-index: 2000;
+    visibility: hidden; opacity: 0; 
+    transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+  }
+  .modal-overlay.open {
+    visibility: visible; opacity: 1;
+    transition: opacity 0.3s ease, visibility 0s;
+  }
+  
+  .modal-content {
+    position: absolute; bottom: 0; left: 0; width: 100%; height: 85%;
+    background: #fff; border-radius: 16px 16px 0 0;
+    display: flex; flex-direction: column;
+    transform: translateY(100%); 
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .modal-overlay.open .modal-content { transform: translateY(0); }
+
+  .modal-header {
+    padding: 12px 15px; border-bottom: 1px solid #e5e7eb;
+    display: flex; justify-content: space-between; align-items: center;
+    background: #f9fafb; border-radius: 16px 16px 0 0;
+  }
+  .modal-title { font-weight: bold; font-size: 1.1rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 10px;}
+  .modal-close { background: none; border: none; font-size: 28px; color: #6b7280; padding: 0 10px; cursor: pointer; line-height: 1; }
+  
+  .modal-search-bar { padding: 10px; border-bottom: 1px solid #e5e7eb; background: #fff; }
+  .modal-search-input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+  .modal-body { flex: 1; overflow-y: auto; padding: 0; -webkit-overflow-scrolling: touch; background-color: #f9fafb; }
+
+  /* ------------------- 樹狀選單 ------------------- */
+  .tree-node { background: #fff; border-bottom: 1px solid #e5e7eb; }
+  
+  /* Level 1: Category */
+  .tree-header-l1 {
+    padding: 10px 9px; 
+    font-weight: 700; 
+    font-size: 16px; 
+    color: #fff; background-color: #374151; 
+    display: flex; justify-content: space-between; align-items: center; cursor: pointer;
+  }
+  .tree-header-l1::after { content: '›'; font-size: 18px; color: #e5e7eb; transition: transform 0.2s; }
+  .tree-node.expanded > .tree-header-l1::after { transform: rotate(90deg); }
+  .tree-node.expanded > .tree-header-l1 { background-color: #1f2937; } 
+
+  /* Level 2: Sub-Category */
+  .tree-group-l2 { display: none; background-color: #f9fafb; } 
+  .tree-node.expanded > .tree-group-l2 { display: block; }
+  
+  .tree-subnode { border-bottom: 1px solid #e5e7eb; }
+  .tree-header-l2 {
+    padding: 11px 15px 11px 20px; 
+    font-size: 15px; 
+    color: #374151; font-weight: 600;
+    cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+    background-color: #e0e6eb;
+    border-left: 5px solid #9ca3af; 
+    transition: background-color 0.2s;
+  }
+  .tree-subnode.expanded > .tree-header-l2 {
+    background-color: #c2ccd6; border-left-color: #2563eb; color: #1e40af;
+  }
+  .tree-header-l2::after { content: '›'; font-size: 14px; color: #6b7280; transition: transform 0.2s; }
+  .tree-subnode.expanded > .tree-header-l2::after { transform: rotate(90deg); }
+
+  /* Level 3: Product */
+  .tree-group-l3 { display: none; background-color: #fff; }
+  .tree-subnode.expanded > .tree-group-l3 { display: block; }
+  
+  .tree-item-l3 {
+    padding: 15px 15px 15px 35px; 
+    font-size: 16px; 
+    color: #374151; 
+    border-bottom: 1px solid #f3f4f6; cursor: pointer;
+  }
+  .tree-item-l3:active { background-color: #e6f1ff; color: #2563eb; }
+  .tree-item-l3.selected { background-color: #e6f1ff; color: #2563eb; font-weight: 600; border-left: 4px solid #2563eb; padding-left: 31px; }
+
+  /* ------------------- 店家詳情 ------------------- */
+  .detail-cate-block { margin-bottom: 10px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+  .detail-cate-header {
+    background: #1f2937; color: #fff; padding: 10px 15px; 
+    font-size: 15px; font-weight: bold; position: sticky; top: 0; z-index: 5;
+  }
+  .detail-scate-header {
+    background: #e2e4e9; color: #374151; padding: 8px 15px 8px 20px; 
+    font-size: 14px; font-weight: 700; border-left: 4px solid #6b7280; border-bottom: 1px solid #d1d5db;
+  }
+  .detail-item-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 15px 12px 30px; border-bottom: 1px solid #f3f4f6; background: #fff;
+  }
+  .detail-item-row:last-child { border-bottom: none; }
+  .detail-item-row.highlight { background-color: #fff7ed; border-left: 3px solid #f97316; padding-left: 27px;}
+  .detail-item-name { font-size: 15px; color: #111827; flex: 1; display:flex; align-items:center;}
+  
+  .detail-search-icon {
+    color: #6b7280; cursor: pointer; padding: 8px; margin-left: 5px; font-size: 16px;
+  }
+  .detail-search-icon:active { color: #2563eb; transform: scale(1.1); }
+
+  /* ------------------- Map Popup ------------------- */
+  .leaflet-popup-content-wrapper { border-radius: 8px; padding: 0; overflow: hidden; }
+  .leaflet-popup-content { 
+    margin: 10px 12px !important; 
+    width: 260px !important; 
+    font-size: 14px; 
+    line-height: 1.4;
+    height: auto !important; 
+    min-height: unset !important;
+  }
+  .leaflet-popup-tip { background: white; }
+  
+  .popup-header { margin-bottom: 6px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+  .popup-store-name { font-weight: 800; font-size: 15px; color: #111827; margin-bottom: 2px; line-height: 1.3; }
+  .popup-address { color: #4b5563; font-size: 12px; margin-bottom: 4px; }
+  
+  .popup-actions { display: flex; gap: 6px; margin-bottom: 8px; }
+  .action-btn {
+    flex: 1; padding: 5px 0; border: 1px solid #d1d5db; background: #f9fafb; 
+    border-radius: 4px; font-size: 12px; color: #374151; cursor: pointer; text-align: center; 
+    text-decoration: none; font-weight: 600; transition: 0.2s; display: inline-block;
+  }
+  .action-btn:active { background: #e5e7eb; color: #111827; }
+  
+  .popup-stock-row { 
+    display: flex; justify-content: space-between; align-items: center; 
+    background: #eff6ff; padding: 6px 8px; border-radius: 4px; 
+    margin-bottom: 8px; border: 1px solid #bfdbfe; 
+  }
+  .popup-stock-name { font-weight: 600; color: #1e40af; flex: 1; padding-right: 8px; font-size: 13px; }
+  .popup-stock-qty { color: #dc2626; font-weight: 800; font-size: 14px; white-space: nowrap; }
+
+  .popup-full-btn { 
+    display: block; width: 100%; padding: 6px 0; 
+    background: #2563eb; color: white; border: none; border-radius: 4px; 
+    font-size: 13px; font-weight: 600; cursor: pointer; text-align: center;
+    margin-top: 4px;
+  }
+  .popup-full-btn:active { background: #1d4ed8; }
+
+  .title-btn {
+    display: inline-block; padding: 4px 8px; margin-left: 6px; 
+    font-size: 12px; background: #f3f4f6; border: 1px solid #d1d5db; 
+    border-radius: 4px; color: #374151; text-decoration: none; cursor: pointer; font-weight: normal;
+  }
+  
+  /* Utilities */
+  .gps-item { color: #2563eb; font-weight: 600; background-color: #eff6ff; padding: 16px 15px; border-bottom: 1px solid #dbeafe; cursor: pointer;}
+  .copy-toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; border-radius: 30px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 3000; }
+  .copy-toast.show { opacity: 1; }
+  .list-item { padding: 16px 15px; border-bottom: 1px solid #f3f4f6; font-size: 16px; color: #1f2937; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #fff; }
+
+  .loading-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(255, 255, 255, 0.8); z-index: 5000;
+    display: none; flex-direction: column; justify-content: center; align-items: center;
+    font-size: 1.1rem; color: #1f2937; font-weight: 600;
+    text-align: center;
+  }
+  .loading-overlay p { margin-top: 10px; }
+  
+  .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
+  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  
+  /* ------------------- 圖釘動畫 (Bounce) ------------------- */
+  @keyframes pinBounceDrop {
+    0% { opacity: 0; transform: translateY(-300px); animation-timing-function: ease-in; }
+    1% { opacity: 1; }
+    60% { transform: translateY(0); animation-timing-function: ease-out; }
+    80% { transform: translateY(-20px); animation-timing-function: ease-in-out; }
+    90% { transform: translateY(4px); animation-timing-function: ease-in-out; }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div id="sidebarOverlay" class="sidebar-overlay">
+  <div class="sidebar">
+    <div class="sidebar-header">選單</div>
+    <ul class="sidebar-menu">
+     <li><a href="/711/">711即期地圖</a></li>
+     <li><a href="/family/">全家即期地圖</a></li>
+     <li><a href="/pxmart/">全聯即期地圖</a></li>
+     <li><a href="#" onclick="showAboutModal();">關於本站</a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <a href="#" onclick="showGuideModal();">說明</a>
+      <a href="#" onclick="showPrivacyModal();">條款</a>
+    </div>
+  </div>
+</div>
+
+<div class="app-header">
+  <div class="header-left">
+    <div class="menu-btn" onclick="toggleSidebar()">☰</div>
+    <div class="app-title" id="appTitle">載入中...</div>
+  </div>
+  <div class="header-right">
+    <button id="refreshBtn" class="refresh-btn" onclick="refreshDataHandler()">↻</button>
+    <div class="update-time" id="headerTime">
+      <span>資料更新時間</span>
+      <span id="timeText">--:--</span>
+    </div>
+    <div class="info-container">
+      <span class="info-icon">i</span>
+      <div class="info-tooltip">資料庫約每 5 分鐘更新一次<br>資料僅供參考，實際以現場為主</div>
+    </div>
+  </div>
+</div>
+
+<div class="control-panel">
+  <div class="control-row">
+    <button id="btnArea" class="big-btn">📍 選擇區域</button>
+    <button id="btnProduct" class="big-btn disabled">🔍 選擇商品</button>
+  </div>
+  <div id="resultCount" class="result-count">請先選擇區域</div>
+</div>
+
+<div id="map"></div>
+
+<div id="toast" class="copy-toast">地址已複製</div>
+<div id="updateToast" class="copy-toast">資料更新成功！</div> 
+<div id="loadingOverlay" class="loading-overlay" style="display: none;">
+  <div class="spinner"></div>
+  <p>載入中，請稍候...</p>
+</div>
+
+<div id="modalOverlay" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">標題</span>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-search-bar" id="modalSearchBar" style="display:none;">
+      <input type="text" class="modal-search-input" id="productSearchInput" placeholder="輸入關鍵字搜尋商品...">
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+/* -------------------------
+   Store Routing Logic (修正版)
+   ------------------------- */
+// 1. 取得網址中的參數 (例如 ?p=/family)
+const urlParams = new URLSearchParams(window.location.search);
+var pParam = urlParams.get('p');
+
+// 2. 決定目前要使用的路徑來源
+// 如果有參數就用參數，沒有就用目前的 pathname
+let checkPath = (pParam || window.location.pathname).toLowerCase();
+
+// 3. 判斷品牌
+let activeStore = '711'; // 預設值
+if (checkPath.includes('family')) {
+    activeStore = 'family';
+} else if (checkPath.includes('pxmart')) {
+    activeStore = 'pxmart';
+}
+else{
+    pParam='711';
+}
+
+// 4. (選配) 為了美觀，將網址列改回漂亮的路徑 (例如把 /?p=/family 改回 /family)
+if (pParam) {
+    window.history.replaceState(null, null, pParam);
+}
+
+// 5. 根據判斷結果設定對應的標題與 API
+const STORE_INFO = {
+  '711': { title: '711即期地圖', api: '711', storageKey: '711_MAP_' },
+  'family': { title: '全家即期地圖', api: 'family', storageKey: 'FAMILY_MAP_' },
+  'pxmart': { title: '全聯即期地圖', api: 'pxmart', storageKey: 'PXMART_MAP_' }
+};
+const configStore = STORE_INFO[activeStore];
+
+// 套用 UI 文字
+document.title = configStore.title;
+document.getElementById('appTitle').textContent = configStore.title;
+
+/* -------------------------
+   Config & State
+   ------------------------- */
+const CONFIG = {
+  zipUrl: '/zipcode.json',
+  topoUrl: '/tw-topo.json',
+  topoKey: 'TOWN_MOI_1140318'
+};
+
+const ANIMATION_CONFIG = {
+  duration: 600,
+  interval: 3
+};
+
+const STORAGE_KEY_PREFIX = configStore.storageKey;
+
+const state = {
+  allZipData: [],
+  ccodeMap: {},
+  currentCity: null,
+  currentTown: null,
+  cityData: null,
+  townData: [],
+  lastValidCity: null,
+  lastValidTown: null,
+  selectedCate: null,
+  selectedScate: null,
+  selectedName: null,
+  map: null,
+  markers: [],
+  geoJsonData: null,
+  userGeo: null, 
+  currentModalType: null 
+};
+
+const els = {
+  btnArea: document.getElementById('btnArea'),
+  btnProduct: document.getElementById('btnProduct'),
+  resultCount: document.getElementById('resultCount'),
+  timeText: document.getElementById('timeText'),
+  modalOverlay: document.getElementById('modalOverlay'),
+  modalTitle: document.getElementById('modalTitle'),
+  modalBody: document.getElementById('modalBody'),
+  modalSearchBar: document.getElementById('modalSearchBar'),
+  searchInput: document.getElementById('productSearchInput'),
+  toast: document.getElementById('toast'),
+  updateToast: document.getElementById('updateToast'),
+  sidebarOverlay: document.getElementById('sidebarOverlay'),
+  loadingOverlay: document.getElementById('loadingOverlay')
+};
+
+/* -------------------------
+   Initialization
+   ------------------------- */
+window.addEventListener('DOMContentLoaded', async () => {
+  initMap();
+  try {
+    await loadZipData();
+    loadTopoData();
+    restoreFromSession();
+  } catch (err) {
+    console.error(err);
+    els.resultCount.textContent = '資料載入失敗';
+    els.resultCount.classList.add('error');
+  }
+});
+
+els.searchInput.addEventListener('input', (e) => {
+  renderProductTree(e.target.value.trim());
+});
+
+/* -------------------------
+   Utility Functions
+   ------------------------- */
+function showLoading(text = '載入中，請稍候...') {
+    els.loadingOverlay.querySelector('p').textContent = text;
+    els.loadingOverlay.style.display = 'flex';
+}
+
+function hideLoading() {
+    els.loadingOverlay.style.display = 'none';
+}
+
+function showToast(elementId, message, duration = 1500) {
+    const toastEl = document.getElementById(elementId);
+    if (!toastEl) return;
+    toastEl.textContent = message;
+    toastEl.classList.add('show'); 
+    setTimeout(() => toastEl.classList.remove('show'), duration);
+}
+
+window.refreshDataHandler = async function() {
+    showLoading('正在重新載入最新資料...');
+    try {
+        await loadZipData(true);
+        if (state.currentCity) {
+            const success = await loadCityData(state.currentCity, true);
+            if (!success) state.currentTown = null;
+        }
+        updateUI();
+        showToast('updateToast', '資料更新成功！', 2000);
+    } catch (e) {
+        console.error('更新失敗:', e);
+        showToast('updateToast', '資料更新失敗，請稍後再試。', 3000);
+    } finally {
+        hideLoading();
+    }
+}
+
+/* -------------------------
+   Map Logic
+   ------------------------- */
+function initMap() {
+  state.map = L.map('map', { attributionControl:false, zoomControl: false }).setView([23.6, 121], 7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OSM', maxZoom: 19
+  }).addTo(state.map);
+}
+
+function createPinIcon(color, zIndexVal, delay = 0) {
+    const svgPath = `<path d="M15 0C6.7 0 0 6.7 0 15c0 11 15 25 15 25s15-14 15-25c0-8.3-6.7-15-15-15zm0 20.5c-3 0-5.5-2.5-5.5-5.5s2.5-5.5 5.5-5.5 5.5 2.5 5.5 5.5-2.5 5.5-5.5 5.5z"/>`;
+    const animStyle = `animation: pinBounceDrop ${ANIMATION_CONFIG.duration}ms linear ${delay}ms both;`;
+    
+    return L.divIcon({
+        className: 'custom-pin',
+        html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 40" width="30" height="40" fill="${color}" stroke="#ffffff" stroke-width="1.5" style="filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3)); ${animStyle}">${svgPath}</svg>`,
+        iconSize: [30, 40],
+        iconAnchor: [15, 40],
+        popupAnchor: [0, -40]
+    });
+}
+
+function createRedPin(delay = 0) {
+    const svgPath = `<path d="M15 0C6.7 0 0 6.7 0 15c0 11 15 25 15 25s15-14 15-25c0-8.3-6.7-15-15-15zm0 20.5c-3 0-5.5-2.5-5.5-5.5s2.5-5.5 5.5-5.5 5.5 2.5 5.5 5.5-2.5 5.5-5.5 5.5z"/>`;
+    const animStyle = `animation: pinBounceDrop ${ANIMATION_CONFIG.duration}ms linear ${delay}ms both;`;
+
+    return L.divIcon({
+        className: 'user-pin',
+        html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 40" width="30" height="40" fill="#ef4444" stroke="#ffffff" stroke-width="1.5" style="filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3)); ${animStyle}">${svgPath}</svg>`,
+        iconSize: [30, 40],
+        iconAnchor: [15, 40],
+        popupAnchor: [0, -40]
+    });
+}
+
+function updateMapMarkers() {
+  state.markers.forEach(m => state.map.removeLayer(m));
+  state.markers = [];
+
+  if (state.userGeo) {
+     const userMarker = L.marker([state.userGeo.lat, state.userGeo.lng], { icon: createRedPin(0), zIndexOffset: 2000 }).addTo(state.map);
+     userMarker.bindPopup('<div style="text-align:center;font-weight:bold;">您的位置</div>');
+     state.markers.push(userMarker);
+  }
+
+  if (!state.currentTown || state.townData.length === 0) {
+    els.resultCount.textContent = state.cityData ? '此區域目前無即期品資料' : '請選擇區域';
+    els.resultCount.classList.toggle('error', !!state.cityData);
+    return;
+  }
+
+  let storesToShow = state.townData;
+  const isFilterApplied = !!state.selectedName;
+
+  if (isFilterApplied) {
+    storesToShow = state.townData.filter(store => 
+      store.data.some(i => i.name === state.selectedName && i.cate === state.selectedCate)
+    );
+  }
+
+  if (storesToShow.length === 0) {
+      if (isFilterApplied) {
+          els.resultCount.textContent = `搜尋: ${state.selectedName}，在此區域無庫存 (0 間店)`;
+      } else {
+          els.resultCount.textContent = '沒有符合條件的店家';
+      }
+      els.resultCount.classList.add('error');
+  } else {
+    let countText = '';
+    if (isFilterApplied) {
+        countText = `搜尋: ${state.selectedName}，共 ${storesToShow.length} 間店`;
+    } else {
+        const hasStockCount = storesToShow.filter(s => s.data.length > 0).length;
+        countText = `顯示全部，共 ${storesToShow.length} 間店 (${hasStockCount} 間有庫存)`;
+    }
+    els.resultCount.textContent = countText;
+    els.resultCount.classList.remove('error');
+  }
+
+  const bounds = [];
+  if(state.userGeo) bounds.push([state.userGeo.lat, state.userGeo.lng]);
+
+  storesToShow.forEach((store, index) => {
+    if (!store.latitude || !store.longitude) return;
+    const lat = parseFloat(store.latitude);
+    const lng = parseFloat(store.longitude);
+    
+    const animDelay = index * ANIMATION_CONFIG.interval;
+
+    let iconColor = '#2563eb';
+    let zIndexOffset = 1000;
+
+    if (!isFilterApplied) {
+        const hasProducts = store.data.length > 0;
+        if (!hasProducts) {
+            iconColor = '#9ca3af';
+            zIndexOffset = 0;
+        }
+    }
+
+    const finalIcon = createPinIcon(iconColor, zIndexOffset, animDelay);
+
+    let popupContent = `
+      <div class="popup-header">
+        <div class="popup-store-name">${store.name} (${store.id})</div>
+        <div class="popup-address">${store.address}</div>
+      </div>
+      <div class="popup-actions">
+        <button class="action-btn" onclick="copyToClipboard('${store.address}')">複製地址</button>
+        <a class="action-btn" href="https://www.google.com/maps/search/?api=1&query=${lat},${lng}" target="_blank">Google Map</a>
+      </div>
+    `;
+    
+    if (isFilterApplied) {
+      const item = store.data.find(i => i.name === state.selectedName && i.cate === state.selectedCate);
+      if (item) {
+        popupContent += `
+          <div class="popup-stock-row">
+            <span class="popup-stock-name">${state.selectedName}</span>
+            <span class="popup-stock-qty">x${item.qty}</span>
+          </div>`;
+      }
+    } else {
+      popupContent += `<div class="popup-stock" style="text-align:center; margin-bottom:10px; font-size:13px; color:#666;">即期品項：${store.data.length} 種</div>`;
+    }
+    popupContent += `<button class="popup-full-btn" onclick="showStoreDetailsInModal('${store.id}')">查看店內所有庫存</button>`;
+
+    const marker = L.marker([lat, lng], { icon: finalIcon, zIndexOffset: zIndexOffset }).addTo(state.map);
+    marker.bindPopup(popupContent);
+    state.markers.push(marker);
+    bounds.push([lat, lng]);
+  });
+
+  if (bounds.length > 0) {
+    state.map.fitBounds(bounds, { padding: [50, 50] });
+  } else if (state.userGeo) {
+    state.map.setView([state.userGeo.lat, state.userGeo.lng], 14);
+  }
+}
+
+/* -------------------------
+   Data Loading
+   ------------------------- */
+async function loadZipData(isRefresh = false) {
+  if (!isRefresh) showLoading('初始化資料中...');
+  try {
+    const res = await fetch(CONFIG.zipUrl);
+    state.allZipData = await res.json();
+    state.ccodeMap = {};
+    state.allZipData.forEach(item => { state.ccodeMap[item.city] = item.ccode; });
+  } finally {
+    if (!isRefresh) hideLoading();
+  }
+}
+
+async function loadTopoData() {
+  try {
+    const res = await fetch(CONFIG.topoUrl);
+    const topoData = await res.json();
+    const geo = topojson.feature(topoData, topoData.objects[CONFIG.topoKey]);
+    state.geoJsonData = geo.features;
+  } catch (e) {
+    console.warn('TopoJSON Error:', e);
+  }
+}
+
+async function loadCityData(city, isRefresh = false) {
+  const ccode = state.ccodeMap[city];
+  if (!ccode) return false;
+  
+  if (!isRefresh) els.btnArea.textContent = '載入中...';
+  try {
+    const res = await fetch(`https://superbegger-superbegger.hf.space/get/${configStore.api}-${ccode}?t=`+new Date().getTime());
+    state.cityData = await res.json();
+    if (state.cityData.updatetime) {
+      const d = new Date(state.cityData.updatetime * 1000);
+      els.timeText.textContent = d.toLocaleString('zh-TW', { hour12:false, month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    }
+    return true;
+  } catch (e) {
+    if (!isRefresh) alert('讀取庫存資料失敗');
+    return false;
+  }
+}
+
+/* -------------------------
+   Modals & Workflows
+   ------------------------- */
+function openModal(title, type) {
+  els.modalTitle.innerHTML = title;
+  state.currentModalType = type || 'generic';
+  els.modalOverlay.classList.add('open');
+  els.modalBody.scrollTop = 0;
+}
+
+function closeModal() {
+  els.modalOverlay.classList.remove('open');
+  
+  if (state.currentModalType === 'area') {
+    if (state.currentCity !== state.lastValidCity || state.currentTown !== state.lastValidTown) {
+        state.currentCity = state.lastValidCity;
+        state.currentTown = state.lastValidTown;
+        if (state.currentCity && (!state.cityData || state.cityData.city !== state.currentCity)) {
+             loadCityData(state.currentCity).then(() => updateUI());
+        } else {
+             updateUI(); 
+        }
+    }
+  }
+  state.currentModalType = null;
+}
+
+els.modalOverlay.addEventListener('click', (e) => {
+  if (e.target === els.modalOverlay) {
+    closeModal();
+  }
+});
+
+function toggleSidebar() { 
+  els.sidebarOverlay.classList.toggle('open'); 
+}
+els.sidebarOverlay.addEventListener('click', (e) => {
+  if (e.target === els.sidebarOverlay) {
+    toggleSidebar();
+  }
+});
+document.querySelector('.sidebar').addEventListener('click', (e) => e.stopPropagation());
+
+// Area Selection
+els.btnArea.addEventListener('click', () => { 
+  state.lastValidCity = state.currentCity;
+  state.lastValidTown = state.currentTown;
+  
+  els.modalSearchBar.style.display = 'none';
+  
+  if (state.currentCity) {
+      openModal(state.currentCity + ' - 選擇區域', 'area');
+      renderTownList();
+  } else {
+      openModal('選擇城市', 'area'); 
+      renderCityList(); 
+  }
+});
+
+function renderCityList() {
+  const cities = [...new Set(state.allZipData.map(z => z.city))];
+  let html = `<div class="gps-item" onclick="handleGPS()">🎯 使用目前位置自動定位</div>`;
+  html += cities.map(city => 
+    `<div class="list-item" onclick="onCitySelected('${city}')"><span>${city}</span><span>›</span></div>`
+  ).join('');
+  els.modalBody.innerHTML = html;
+}
+
+async function onCitySelected(city, autoTown = null, fromGPS = false) {
+  state.currentCity = city;
+  if (!fromGPS) state.userGeo = null;
+
+  els.modalBody.innerHTML = '<div class="spinner"></div>';
+  els.modalTitle.textContent = city;
+  
+  if (await loadCityData(city)) {
+    if (autoTown && (state.cityData.town.find(t => t.town === autoTown) || state.allZipData.some(z => z.city === city && z.town === autoTown))) {
+      onTownSelected(autoTown);
+    } else {
+      renderTownList();
+    }
+  } else {
+    state.currentCity = state.lastValidCity; 
+    closeModal();
+    updateUI();
+  }
+}
+
+function renderTownList() {
+  let towns = state.cityData.town ? state.cityData.town.map(t => t.town) : [];
+  if(towns.length === 0) towns = state.allZipData.filter(z => z.city === state.currentCity).map(z => z.town);
+
+  let html = `<div class="list-item" onclick="renderCityList()" style="background:#fefce8;color:#b45309"><span>↩ 重選城市</span></div>`;
+  if (towns.length > 0) {
+      html += `<div class="list-item" onclick="onTownSelected('全區')" style="font-weight:bold; color:#059669;"><span>📍 顯示全區</span></div>`;
+  }
+  
+  html += towns.map(town => 
+    `<div class="list-item" onclick="onTownSelected('${town}')"><span>${town}</span></div>`
+  ).join('');
+  els.modalBody.innerHTML = html;
+  els.modalTitle.textContent = `${state.currentCity} - 選擇區域`;
+}
+
+function onTownSelected(town) {
+  state.currentTown = town;
+  state.lastValidCity = state.currentCity;
+  state.lastValidTown = state.currentTown;
+  
+  sessionStorage.setItem(STORAGE_KEY_PREFIX + 'selCity', state.currentCity);
+  sessionStorage.setItem(STORAGE_KEY_PREFIX + 'selTown', state.currentTown);
+  gtag('event', 'select_area', {
+    'store_brand': configStore.title,
+    'city': state.currentCity,
+    'town': town
+  });
+  closeModal();
+  updateUI();
+}
+
+// Product Selection
+els.btnProduct.addEventListener('click', () => {
+  if (els.btnProduct.classList.contains('disabled')) return;
+  els.modalSearchBar.style.display = 'block';
+  els.searchInput.value = '';
+  openModal('選擇商品', 'product');
+  renderProductTree();
+});
+
+function renderProductTree(filter = '') {
+  const tree = {};
+  state.townData.forEach(store => {
+    store.data.forEach(item => {
+      if (!item.cate) return;
+      if (!tree[item.cate]) tree[item.cate] = {};
+      if (!tree[item.cate][item.scate]) tree[item.cate][item.scate] = new Set();
+      tree[item.cate][item.scate].add(item.name);
+    });
+  });
+
+  const isFiltering = filter.length > 0;
+  const f = filter.toLowerCase();
+  let html = `<div class="list-item" onclick="clearProductFilter(true);closeModal()" style="color:#ef4444; font-weight:bold; border-bottom:2px solid #f3f4f6">✖ 清除篩選 (顯示全部)</div>`;
+  
+  const sortedCates = Object.keys(tree).sort();
+  if (sortedCates.length === 0) {
+    els.modalBody.innerHTML = '<div class="list-item" onclick="clearProductFilter(true);closeModal()" style="color:#ef4444; font-weight:bold; border-bottom:2px solid #f3f4f6">✖ 清除篩選</div><div style="padding:20px;text-align:center">無商品資料</div>';
+    return;
+  }
+
+  sortedCates.forEach((cate, cIdx) => {
+    const scates = tree[cate];
+    const sortedScates = Object.keys(scates).sort();
+    let cateHtml = '';
+    let hasCateMatch = false;
+    let isCateExpanded = (cate === state.selectedCate) || isFiltering; 
+
+    sortedScates.forEach((scate, sIdx) => {
+      const products = Array.from(scates[scate]).sort();
+      let scateHtml = '';
+      let hasScateMatch = false;
+      let isScateExpanded = (cate === state.selectedCate && scate === state.selectedScate) || isFiltering;
+
+      products.forEach(prod => {
+        if (isFiltering && !prod.toLowerCase().includes(f)) return;
+        hasScateMatch = true;
+        hasCateMatch = true;
+        
+        const isSelected = (cate === state.selectedCate && scate === state.selectedScate && prod === state.selectedName);
+        const selectedClass = isSelected ? 'selected' : '';
+        
+        scateHtml += `
+          <div class="tree-item-l3 ${selectedClass}" onclick="onProductSelected('${escapeHtml(cate)}', '${escapeHtml(scate)}', '${escapeHtml(prod)}')">
+            ${escapeHtml(prod)}
+          </div>`;
+      });
+
+      if (hasScateMatch) {
+        const scateId = `s_${cIdx}_${sIdx}`;
+        const displayStyle = isScateExpanded ? 'block' : 'none';
+        const expandedClass = isScateExpanded ? 'expanded' : '';
+        
+        cateHtml += `
+          <div class="tree-node tree-subnode ${expandedClass}" id="node_${scateId}">
+            <div class="tree-header-l2" onclick="toggleTreeNode('node_${scateId}')">
+              ${escapeHtml(scate)}
+            </div>
+            <div class="tree-group-l3" style="display:${displayStyle}">
+              ${scateHtml}
+            </div>
+          </div>`;
+      }
+    });
+
+    if (hasCateMatch) {
+      const cateId = `c_${cIdx}`;
+      const displayStyle = isCateExpanded ? 'block' : 'none';
+      const expandedClass = isCateExpanded ? 'expanded' : '';
+      
+      html += `
+        <div class="tree-node ${expandedClass}" id="node_${cateId}">
+          <div class="tree-header-l1" onclick="toggleTreeNode('node_${cateId}', true)">
+            ${escapeHtml(cate)}
+          </div>
+          <div class="tree-group-l2" style="display:${displayStyle}">
+            ${cateHtml}
+          </div>
+        </div>`;
+    }
+  });
+
+  if (html.indexOf('tree-node') === -1) html += '<div style="padding:20px;text-align:center;color:#666">找不到符合的商品</div>';
+  els.modalBody.innerHTML = html;
+
+  if (!isFiltering && state.selectedName) {
+      setTimeout(() => {
+          const sel = document.querySelector('.tree-item-l3.selected');
+          if (sel) sel.scrollIntoView({ block: 'center' });
+      }, 100);
+  }
+}
+
+window.toggleTreeNode = function(id, isRoot = false) {
+  const node = document.getElementById(id);
+  if (!node) return;
+  const content = node.children[1];
+  const isClosed = content.style.display === 'none' || content.style.display === '';
+  
+  if (isClosed) {
+    if (isRoot) {
+      document.querySelectorAll('.tree-node').forEach(sib => {
+        if (sib.id !== id && sib.id.startsWith('node_c_')) {
+          sib.classList.remove('expanded');
+          sib.children[1].style.display = 'none';
+        }
+      });
+    } else {
+      const siblings = node.parentElement.children;
+      for (let sib of siblings) {
+         if (sib !== node && sib.classList.contains('tree-subnode')) {
+            sib.classList.remove('expanded');
+            sib.children[1].style.display = 'none';
+         }
+      }
+    }
+    node.classList.add('expanded');
+    content.style.display = 'block';
+  } else {
+    node.classList.remove('expanded');
+    content.style.display = 'none';
+  }
+}
+
+function onProductSelected(cate, scate, name) {
+  state.selectedCate = unescapeHtml(cate);
+  state.selectedScate = unescapeHtml(scate);
+  state.selectedName = unescapeHtml(name);
+  sessionStorage.setItem(STORAGE_KEY_PREFIX + 'selCate', state.selectedCate);
+  sessionStorage.setItem(STORAGE_KEY_PREFIX + 'selScate', state.selectedScate);
+  sessionStorage.setItem(STORAGE_KEY_PREFIX + 'selItem', state.selectedName);
+  // --- GA 追蹤：商品過濾 (獨立) ---
+  gtag('event', 'select_product', {
+    'store_brand': configStore.title,
+    'product_cate': state.selectedCate,
+    'product_scate': state.selectedScate,
+    'product_name': state.selectedName
+  });
+
+  // --- GA 追蹤：商品過濾 (含區域組合) ---
+  gtag('event', 'product_filter_context', {
+    'store_brand': configStore.title,
+    'city': state.currentCity,
+    'town': state.currentTown,
+    'product_cate': state.selectedCate,
+    'product_scate': state.selectedScate,
+    'product_name': state.selectedName
+  });
+  closeModal();
+  updateUI();
+}
+
+window.applyProductFilterFromDetail = function(cate, scate, name) {
+    onProductSelected(cate, scate, name);
+}
+
+/* -------------------------
+   Store Detail Logic
+   ------------------------- */
+window.showStoreDetailsInModal = function(storeId) {
+  const store = state.townData.find(s => ''+s.id === ''+storeId);
+  if (!store) return;
+
+  const grouped = {};
+  store.data.forEach(item => {
+    if (!grouped[item.cate]) grouped[item.cate] = {};
+    if (!grouped[item.cate][item.scate]) grouped[item.cate][item.scate] = [];
+    grouped[item.cate][item.scate].push(item);
+  });
+
+  let html = '';
+  Object.keys(grouped).sort().forEach(cate => {
+    html += `<div class="detail-cate-block">`;
+    html += `<div class="detail-cate-header">${cate}</div>`;
+    
+    Object.keys(grouped[cate]).sort().forEach(scate => {
+      html += `<div class="detail-scate-header">${scate}</div>`;
+      
+      grouped[cate][scate].forEach(item => {
+        const highlight = (state.selectedName && item.name === state.selectedName) ? 'highlight' : '';
+        html += `
+          <div class="detail-item-row ${highlight}">
+            <div class="detail-item-name">
+                ${item.name}
+                <span class="detail-search-icon" onclick="applyProductFilterFromDetail('${escapeHtml(item.cate)}', '${escapeHtml(item.scate)}', '${escapeHtml(item.name)}')">🔍</span>
+            </div>
+            <div class="qty-badge">${item.qty}</div>
+          </div>`;
+      });
+    });
+    html += `</div>`;
+  });
+
+  if (!html) html = '<div style="padding:20px;">無即期品資料</div>';
+
+  els.modalSearchBar.style.display = 'none';
+  
+  const titleHtml = `
+    <div style="flex:1; overflow:hidden; text-overflow:ellipsis;">${store.name} (${store.id})</div>
+    <button class="title-btn" onclick="copyToClipboard('${store.address}')">複製地址</button>
+    <a class="title-btn" href="https://www.google.com/maps/search/?api=1&query=${store.latitude},${store.longitude}" target="_blank">Google Map</a>
+  `;
+  
+  openModal(titleHtml, 'stock');
+  els.modalBody.innerHTML = html;
+}
+
+/* -------------------------
+   GPS Logic
+   ------------------------- */
+function handleGPS() {
+  if (!navigator.geolocation) return alert("您的裝置不支援定位");
+  if (!state.geoJsonData) return alert("地圖資料載入中，請稍候");
+
+  els.modalBody.innerHTML = '<div class="spinner"></div><p style="text-align:center">定位中...</p>';
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const found = findTownByLatLon(pos.coords.latitude, pos.coords.longitude);
+      if (found) {
+        state.userGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+
+        let city = found.properties.COUNTYNAME.replace('臺', '台');
+        let town = found.properties.TOWNNAME;
+        if (state.ccodeMap[city]) {
+          onCitySelected(city, town, true);
+        } else {
+          alert(`不支援區域：${city}`); renderCityList();
+        }
+      } else {
+        alert("無法判斷位置"); renderCityList();
+      }
+    },
+    (err) => { console.error(err); alert("定位失敗"); renderCityList(); },
+    { timeout: 10000 }
+  );
+}
+
+function findTownByLatLon(lat, lng) {
+  const point = [lng, lat];
+  for (const feature of state.geoJsonData) {
+    const geom = feature.geometry;
+    if (!geom) continue;
+    const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+    for (const poly of polys) {
+      if (pointInPolygon(point, poly[0])) return feature;
+    }
+  }
+  return null;
+}
+
+function pointInPolygon(point, vs) {
+  var x = point[0], y = point[1];
+  var inside = false;
+  for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+    var xi = vs[i][0], yi = vs[i][1];
+    var xj = vs[j][0], yj = vs[j][1];
+    var intersect = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/* -------------------------
+   Core Update
+   ------------------------- */
+function updateUI() {
+  els.btnArea.textContent = state.currentTown ? `📍 ${state.currentCity} ${state.currentTown}` : '📍 選擇區域';
+  els.btnArea.classList.toggle('selected', !!state.currentTown);
+  
+  if (state.selectedName) {
+    els.btnProduct.textContent = `📦 ${state.selectedName}`;
+    els.btnProduct.classList.add('selected');
+  } else {
+    els.btnProduct.textContent = '🔍 選擇商品';
+    els.btnProduct.classList.remove('selected');
+  }
+
+  if (state.currentTown && state.cityData) {
+    if (state.currentTown === '全區') {
+        let allData = [];
+        if (state.cityData.town) {
+            state.cityData.town.forEach(t => {
+               if (t.data) allData = allData.concat(t.data); 
+            });
+        }
+        state.townData = allData;
+    } else {
+        const tData = state.cityData.town.find(t => t.town === state.currentTown);
+        state.townData = tData ? (tData.data || []) : [];
+    }
+    els.btnProduct.classList.toggle('disabled', state.townData.length === 0);
+  }
+  
+  updateMapMarkers();
+}
+
+function clearProductFilter(shouldUpdate) {
+  state.selectedCate = state.selectedScate = state.selectedName = null;
+  sessionStorage.removeItem(STORAGE_KEY_PREFIX + 'selItem');
+  sessionStorage.removeItem(STORAGE_KEY_PREFIX + 'selCate');
+  sessionStorage.removeItem(STORAGE_KEY_PREFIX + 'selScate');
+  if (shouldUpdate) updateUI();
+}
+
+function escapeHtml(s) { return String(s).replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>').replace(/"/g,'"'); }
+function unescapeHtml(s) { return String(s).replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>').replace(/"/g,'"'); }
+
+window.copyToClipboard = function(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+  showToast('toast', '地址已複製', 1500);
+}
+
+async function restoreFromSession() {
+  const sCity = sessionStorage.getItem(STORAGE_KEY_PREFIX + 'selCity');
+  const sTown = sessionStorage.getItem(STORAGE_KEY_PREFIX + 'selTown');
+  if (sCity && sTown) {
+    state.currentCity = sCity;
+    state.lastValidCity = sCity; 
+    if(await loadCityData(sCity)) {
+      state.currentTown = sTown;
+      state.lastValidTown = sTown; 
+      const sItem = sessionStorage.getItem(STORAGE_KEY_PREFIX + 'selItem');
+      if(sItem) {
+        state.selectedName = sItem;
+        state.selectedCate = sessionStorage.getItem(STORAGE_KEY_PREFIX + 'selCate');
+        state.selectedScate = sessionStorage.getItem(STORAGE_KEY_PREFIX + 'selScate');
+      }
+      updateUI();
+    }
+  }
+}
+
+/* -------------------------
+   使用說明 Modal
+   ------------------------- */
+window.showGuideModal = function() {
+  // 1. 如果側邊欄是開著的，先把它關掉
+  if (els.sidebarOverlay.classList.contains('open')) {
+    toggleSidebar();
+  }
+
+  // 2. 隱藏 Modal 的搜尋列 (因為說明頁面不需要搜尋)
+  els.modalSearchBar.style.display = 'none';
+
+  // 3. 準備說明的 HTML 內容
+  const guideHtml = `
+    <div style="padding: 20px; line-height: 1.6; color: #374151; background: #fff; min-height: 100%;">
+      
+      <h3 style="margin-top: 0; color: #111827; border-bottom: 2px solid #eff6ff; padding-bottom: 8px; font-size: 1.1rem;">1. 設定查詢區域 📍</h3>
+      <ul style="padding-left: 20px; margin-bottom: 20px;">
+        <li style="margin-bottom: 8px;">點擊 <b style="color:#2563eb;">「選擇區域」</b> 按鈕。</li>
+        <li style="margin-bottom: 8px;">你可以使用「🎯 使用目前位置自動定位」，或手動選擇想查看的縣市與鄉鎮。</li>
+      </ul>
+
+      <h3 style="color: #111827; border-bottom: 2px solid #eff6ff; padding-bottom: 8px; font-size: 1.1rem;">2. 尋找特定商品 🔍</h3>
+      <ul style="padding-left: 20px; margin-bottom: 20px;">
+        <li style="margin-bottom: 8px;">選定區域後，點擊 <b style="color:#2563eb;">「選擇商品」</b>。</li>
+        <li style="margin-bottom: 8px;">可利用頂部搜尋列輸入關鍵字，或展開分類目錄。選定後，地圖只會顯示有該商品庫存的門市。</li>
+      </ul>
+
+      <h3 style="color: #111827; border-bottom: 2px solid #eff6ff; padding-bottom: 8px; font-size: 1.1rem;">3. 看懂地圖圖釘 📌</h3>
+      <ul style="padding-left: 20px; margin-bottom: 20px;">
+        <li style="margin-bottom: 8px;">🔵 <b>藍色圖釘</b>：該門市有即期品庫存。</li>
+        <li style="margin-bottom: 8px;">⚪ <b style="color:#9ca3af;">灰色圖釘</b>：目前無庫存（或指定的商品已售完）。</li>
+        <li style="margin-bottom: 8px;">🔴 <b style="color:#ef4444;">紅色圖釘</b>：你目前的定位位置。</li>
+      </ul>
+
+      <h3 style="color: #111827; border-bottom: 2px solid #eff6ff; padding-bottom: 8px; font-size: 1.1rem;">4. 查看門市庫存 🏪</h3>
+      <ul style="padding-left: 20px; margin-bottom: 20px;">
+        <li style="margin-bottom: 8px;">點擊圖釘可查看門市名稱與地址，並提供一鍵複製與 Google Map 導航。</li>
+        <li style="margin-bottom: 8px;">點擊 <b style="color:#2563eb;">「查看店內所有庫存」</b>，即可展開該店目前的所有即期品詳細清單。</li>
+        <li style="margin-bottom: 8px; background: #eff6ff; padding: 5px; border-radius: 5px;">✨在展開的庫存清單中，點擊商品名稱旁邊的 <b>「🔍 放大鏡圖示」</b>，能快速搜尋該區域內同樣有這款商品的門市。</li>
+      </ul>
+
+      <div style="background: #fefce8; color: #b45309; padding: 15px; border-radius: 8px; font-size: 0.95rem; margin-top: 25px; border-left: 4px solid #f59e0b;">
+        <b>💡 小提醒：</b><br>
+        資料庫約每 5 分鐘更新一次，可點擊右上角「↻」手動刷新。即期品庫存數量變動很快，實際數量以門市現場為主。
+      </div>
+
+    </div>
+  `;
+
+  // 4. 將內容寫入 Modal Body 並呼叫你的 openModal 函數
+  els.modalBody.innerHTML = guideHtml;
+  openModal('📖 使用說明', 'guide');
+};
+
+
+/* -------------------------
+   隱私權與服務條款 Modal (已更新圖資來源)
+   ------------------------- */
+window.showPrivacyModal = function() {
+  if (els.sidebarOverlay.classList.contains('open')) toggleSidebar();
+  els.modalSearchBar.style.display = 'none';
+
+  const privacyHtml = `
+    <div style="padding: 20px; line-height: 1.6; color: #374151; background: #fff; min-height: 100%;">
+      <p style="margin-top:0; font-size: 0.95rem; color: #6b7280;">最後更新日期：2024年</p>
+      
+      <h3 style="color: #111827; border-bottom: 2px solid #eff6ff; padding-bottom: 8px; font-size: 1.1rem;">1. 資料收集與使用</h3>
+      <p style="margin-bottom: 15px; font-size: 0.95rem;">本網頁為學術與技術展示用途，<b>不會主動收集使用者的姓名、電話、Email 等個人識別資料</b>。當您使用「自動定位」功能時，系統僅會在您的瀏覽器端取得經緯度，以計算最近的鄉鎮區域，該定位資料不會上傳至我們的伺服器儲存。</p>
+
+      <h3 style="color: #111827; border-bottom: 2px solid #eff6ff; padding-bottom: 8px; font-size: 1.1rem;">2. Cookie 與瀏覽器暫存</h3>
+      <p style="margin-bottom: 15px; font-size: 0.95rem;">為了提供更好的使用體驗，本站會使用瀏覽器的 <code>sessionStorage</code> 來暫存您當次選擇的縣市、鄉鎮與商品搜尋紀錄，關閉分頁後即會失效。此外，本站有串接 Google Analytics 以統計網站總瀏覽量，做為效能優化參考。</p>
+
+      <h3 style="color: #111827; border-bottom: 2px solid #eff6ff; padding-bottom: 8px; font-size: 1.1rem;">3. 免責聲明</h3>
+      <p style="margin-bottom: 15px; font-size: 0.95rem;">本站提供之即期品庫存與地圖資料僅供參考。商品實際庫存、折扣活動與營業時間，皆以各超商與超市「實體門市現場」為準。因資料同步可能有時間差，本站不保證資訊之絕對正確性，亦不對因使用本服務而產生的任何損失負責。</p>
+      
+      <h3 style="color: #111827; border-bottom: 2px solid #eff6ff; padding-bottom: 8px; font-size: 1.1rem;">4. 第三方服務與資料來源</h3>
+      <p style="margin-bottom: 25px; font-size: 0.95rem;">本站地圖圖資採用 OpenStreetMap，並透過 Leaflet.js 渲染；<b>台灣鄉鎮市區地理界線（TopoJSON）資料來源為<a href="https://data.gov.tw/" target="_blank" style="color: #2563eb; text-decoration: none;">政府資料開放平臺</a></b>。所有商標與品牌名稱（如 7-11、全家、全聯）版權皆屬原公司所有，本站僅作公開資訊之便民查詢整合。</p>
+    </div>
+  `;
+  els.modalBody.innerHTML = privacyHtml;
+  openModal('📜 隱私權與條款', 'privacy');
+};
+
+/* -------------------------
+   關於本站 Modal (已更新圖資與Gemini說明)
+   ------------------------- */
+window.showAboutModal = function() {
+  if (els.sidebarOverlay.classList.contains('open')) toggleSidebar();
+  els.modalSearchBar.style.display = 'none';
+
+  const aboutHtml = `
+    <div style="padding: 20px; line-height: 1.6; color: #374151; background: #fff; min-height: 100%; text-align: center;">
+      
+      <div style="font-size: 50px; margin-bottom: 10px;">🗺️</div>
+      <h2 style="margin: 0 0 5px 0; color: #111827;">即期地圖</h2>
+      <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 20px;">v1.0.0</p>
+
+      <div style="text-align: left; background: #f9fafb; padding: 15px; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 20px;">
+        <h3 style="margin-top: 0; color: #2563eb; font-size: 1.05rem; margin-bottom: 10px;">💡 關於本專案</h3>
+        <p style="margin: 0; font-size: 0.95rem;">
+          本網頁是由開發者作為<b>學術研究與程式開發練習</b>之用途而建立的非營利專案，目前部署於 GitHub Pages。<br><br>
+          我們希望透過統整各大通路的即期品資訊，幫助大家減少食物浪費，共同為環保盡一份心力，同時還能省荷包！
+        </p>
+      </div>
+
+      <div style="text-align: left; background: #f9fafb; padding: 15px; border-radius: 12px; border: 1px solid #e5e7eb;">
+        <h3 style="margin-top: 0; color: #2563eb; font-size: 1.05rem; margin-bottom: 10px;">🛠️ 技術與鳴謝</h3>
+        <ul style="margin: 0; padding-left: 20px; font-size: 0.95rem; color: #4b5563;">
+          <li style="margin-bottom: 8px;"><b>AI 輔助開發：</b>本網站由 <b>Google Gemini</b> 協助生成程式碼架構與文案優化。</li>
+          <li style="margin-bottom: 8px;"><b>地圖渲染：</b>使用 Leaflet.js 搭配 OpenStreetMap 圖資。</li>
+          <li style="margin-bottom: 8px;"><b>地理資料：</b>鄉鎮界線 (TopoJSON) 取自 <a href="https://data.gov.tw/" target="_blank" style="color: #2563eb; text-decoration: none;">政府資料開放平臺</a>。</li>
+          <li style="margin-bottom: 0;"><b>特別聲明：</b>本站與 7-11、全家、全聯無任何官方合作關係，商標權歸屬原公司。</li>
+        </ul>
+      </div>
+
+    </div>
+  `;
+  els.modalBody.innerHTML = aboutHtml;
+  openModal('ℹ️ 關於本站', 'about');
+};
+
+</script>
+</body>
+</html>

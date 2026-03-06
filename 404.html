@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <script>
+    // 取得當前錯誤的路徑，例如 /family/
+    var path = window.location.pathname;
+    // 轉跳回首頁，並帶上參數 p
+    // 如果你的 github 網址有專案名稱 (如 /my-repo/)，這裡要改為 window.location.replace('/my-repo/?p=' + ...)
+    window.location.replace('/?p=' + encodeURIComponent(path));
+  </script>
+</head>
+<body></body>
+</html>
